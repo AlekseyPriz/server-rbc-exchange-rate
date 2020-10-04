@@ -3,6 +3,7 @@ var router = express.Router();
 const axios = require('axios');
 const jsdom = require('jsdom');
 const moment = require('moment');
+const cors = require('cors');
 
 const { JSDOM } = jsdom;
 
@@ -18,7 +19,7 @@ const createCellObj = function(row) {
 
 const sortVolute = function(item) {
   return item.charCode === 'USD' || item.charCode === 'EUR';
-}
+};
 
 const getCoursesArray = function(data) {
   const dom = new JSDOM(data);
@@ -38,36 +39,49 @@ const getCoursesArray = function(data) {
 
 
 /* GET users listing. */
-router.get('/', function(req, res, next) {
+router.get('/', cors(), function(req, res, next) {
 
   const dateArray = [];
+  const resultArray = [];
 
-  for (let i = 0; i < 30; i++) {
-    date = moment().subtract(i, 'days').format('DD.MM.YYYY');
-    dateArray.push(date)
-  }
+  if (resultArray.length !== 0) {
+    res.json(resultArray);
+  } else {
+    for (let i = 0; i < 30; i++) {
+      date = moment().subtract(i, 'days').format('DD.MM.YYYY');
+      dateArray.push(date)
+    }
 
-  const axiosGetArray = dateArray.map( date => {
-    return axios.get(`https://www.cbr.ru/currency_base/daily/?UniDbQuery.Posted=True&UniDbQuery.To=${date}`)
-  });
+    const axiosGetArray = dateArray.map( date => {
+      return axios.get(`https://www.cbr.ru/currency_base/daily/?UniDbQuery.Posted=True&UniDbQuery.To=${date}`)
+    });
 
 
-  axios.all(axiosGetArray).then(axios.spread((...responces) => {
-    const resultArray = [];
+    axios.all(axiosGetArray).then(axios.spread((...responces) => {
 
-    responces.forEach((responce) => {
-      resultArray.push({
+      responces
+          .forEach((responce) => {
+        resultArray.push({
           date: responce.request.path.slice(-10),
           usd: getCoursesArray(responce.data)[0],
           eur: getCoursesArray(responce.data)[1],
         });
+      });
+
+      res.json(resultArray.map((item) => {
+            return {
+              date: item.date,
+              usd: item.usd.value,
+              eur: item.eur.value
+            }
+          })
+      );
+
+    })).catch(error => {
+      console.log(error);
     });
 
-    console.log(resultArray);
-    res.send(resultArray);
-  })).catch(error => {
-    console.log(error);
-  });
+  }
 
 });
 
